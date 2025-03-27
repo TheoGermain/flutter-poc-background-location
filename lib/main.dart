@@ -11,8 +11,10 @@ import 'SettingsRoute.dart';
 import 'UserPositionProvider.dart';
 
 void main() async {
-  // await FMTCObjectBoxBackend().initialise();
   WidgetsFlutterBinding.ensureInitialized();
+  await FMTCObjectBoxBackend().initialise();
+  await FMTCStore('mapStore').manage.create();
+  preloadTiles();
 
   runApp(
     MultiProvider(
@@ -31,29 +33,26 @@ void main() async {
 class MyApp extends StatelessWidget {
   MyApp({super.key});
 
-  /*final tileProvider = FMTCTileProvider.allStores(
+  final tileProvider = FMTCTileProvider.allStores(
     allStoresStrategy: BrowseStoreStrategy.readUpdateCreate,
     loadingStrategy: BrowseLoadingStrategy.cacheFirst,
-  );*/
+  );
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Flutter Demo',
       theme: ThemeData(colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple)),
-      home: MyHomePage(
-        title: Platform.isAndroid ? 'Hello Android user' : 'Hello iOS user' /*, tileProvider: tileProvider*/,
-      ),
+      home: MyHomePage(title: Platform.isAndroid ? 'Hello Android user' : 'Hello iOS user', tileProvider: tileProvider),
     );
   }
 }
 
 class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title /*, required this.tileProvider*/});
+  const MyHomePage({super.key, required this.title, required this.tileProvider});
 
   final String title;
-
-  //final TileProvider tileProvider;
+  final TileProvider tileProvider;
 
   @override
   State<MyHomePage> createState() => _MyHomePageState();
@@ -94,7 +93,7 @@ class _MyHomePageState extends State<MyHomePage> {
                 urlTemplate:
                     'https://tiles.stadiamaps.com/tiles/stamen_toner/{z}/{x}/{y}@2x.png?api_key=7c2dac10-ea74-48bd-aedc-cd8b320cae94',
                 userAgentPackageName: 'com.example.app',
-                //tileProvider: widget.tileProvider,
+                tileProvider: widget.tileProvider,
               ),
               if (config.shouldDisplayLinesBetweenLocations && userPositions.length > 1)
                 PolylineLayer(
@@ -136,4 +135,32 @@ class _MyHomePageState extends State<MyHomePage> {
       ),
     );
   }
+}
+
+Future<void> preloadTiles({LatLng? lastPosition}) async {
+  final position = lastPosition ?? LatLng(48.870769, 2.332324);
+
+  final region = CircleRegion(
+    position,
+    10, // rayon en kilomètres
+  );
+
+  final downloadableRegion = region.toDownloadable(
+    minZoom: 10,
+    maxZoom: 15,
+    options: TileLayer(
+      urlTemplate:
+          'https://tiles.stadiamaps.com/tiles/stamen_toner/{z}/{x}/{y}@2x.png?api_key=7c2dac10-ea74-48bd-aedc-cd8b320cae94',
+      userAgentPackageName: 'com.example.app',
+    ),
+  );
+
+  final store = const FMTCStore('mapStore');
+  final (:downloadProgress, :tileEvents) = store.download.startForeground(region: downloadableRegion);
+
+  downloadProgress.listen((progress) {
+    print(
+      '[MAP DOWNLOAD] Progress: ${progress.successfulTilesCount} / ${progress.attemptedTilesCount + progress.remainingTilesCount} (${progress.percentageProgress}% - ${progress.estRemainingDuration} remaining)',
+    );
+  });
 }

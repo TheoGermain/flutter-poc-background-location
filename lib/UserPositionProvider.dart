@@ -9,6 +9,8 @@ import 'package:latlong2/latlong.dart';
 import 'package:poc_gps_bateaux/UserPositionData.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'main.dart';
+
 class UserPositionProvider extends ChangeNotifier {
   static const String userPositionsKey = 'user_positions';
 
@@ -171,6 +173,7 @@ class UserPositionProvider extends ChangeNotifier {
       _addPosition(
         UserPositionData(position: LatLng(position.latitude, position.longitude), timestamp: DateTime.now()),
       );
+      preloadTiles(lastPosition: LatLng(position.latitude, position.longitude));
       print('[POC] Location tracked: ${position.latitude}, ${position.longitude}');
     } catch (e) {
       print('[POC] Error tracking location: $e');
