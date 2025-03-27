@@ -13,13 +13,15 @@ import 'UserPositionProvider.dart';
 void main() async {
   // await FMTCObjectBoxBackend().initialise();
   WidgetsFlutterBinding.ensureInitialized();
-  UserPositionsBackgroundService.init();
 
   runApp(
     MultiProvider(
       providers: [
-        // ChangeNotifierProvider<UserPositionProvider>(create: (_) => UserPositionProvider()),
         ChangeNotifierProvider<ConfigProvider>(create: (_) => ConfigProvider()),
+        ChangeNotifierProxyProvider<ConfigProvider, UserPositionProvider>(
+          create: (_) => UserPositionProvider(false),
+          update: (_, config, __) => UserPositionProvider(config.enableBackgroundTasks),
+        ),
       ],
       child: MyApp(),
     ),
@@ -64,7 +66,10 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   Widget build(BuildContext context) {
     final config = Provider.of<ConfigProvider>(context);
-    // final userPositions = userPositionProvider.items;
+    final userPositionProvider = Provider.of<UserPositionProvider>(context);
+    final userPositions = userPositionProvider.items;
+    final isTracking = userPositionProvider.isTracking;
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
@@ -78,70 +83,56 @@ class _MyHomePageState extends State<MyHomePage> {
           ),
         ],
       ),
-      body: ValueListenableBuilder(
-        valueListenable: UserPositionsBackgroundService.items,
-        builder:
-            (ctx, userPositions, _) => Stack(
-              alignment: Alignment.topLeft,
-              children: [
-                FlutterMap(
-                  options: MapOptions(initialCenter: LatLng(48.870769, 2.332324)),
-                  children: [
-                    TileLayer(
-                      // urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      urlTemplate:
-                          'https://tiles.stadiamaps.com/tiles/stamen_toner/{z}/{x}/{y}@2x.png?api_key=7c2dac10-ea74-48bd-aedc-cd8b320cae94',
-                      userAgentPackageName: 'com.example.app',
-                      //tileProvider: widget.tileProvider,
-                    ),
-                    if (config.shouldDisplayLinesBetweenLocations && userPositions.length > 1)
-                      PolylineLayer(
-                        polylines: [
-                          Polyline(
-                            points: userPositions.map((e) => e.position).toList(),
-                            strokeWidth: 4,
-                            color: Colors.red,
-                          ),
-                        ],
-                      ),
-                    MarkerLayer(
-                      markers:
-                          userPositions
-                              .take(config.shouldDisplayLastLocationOnly ? 1 : userPositions.length)
-                              .map(
-                                (e) => Marker(
-                                  point: e.position,
-                                  child: Icon(Icons.place, color: Colors.red),
-                                  rotate: false,
-                                ),
-                              )
-                              .toList(),
-                    ),
+      body: Stack(
+        alignment: Alignment.topLeft,
+        children: [
+          FlutterMap(
+            options: MapOptions(initialCenter: LatLng(48.870769, 2.332324)),
+            children: [
+              TileLayer(
+                // urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                urlTemplate:
+                    'https://tiles.stadiamaps.com/tiles/stamen_toner/{z}/{x}/{y}@2x.png?api_key=7c2dac10-ea74-48bd-aedc-cd8b320cae94',
+                userAgentPackageName: 'com.example.app',
+                //tileProvider: widget.tileProvider,
+              ),
+              if (config.shouldDisplayLinesBetweenLocations && userPositions.length > 1)
+                PolylineLayer(
+                  polylines: [
+                    Polyline(points: userPositions.map((e) => e.position).toList(), strokeWidth: 4, color: Colors.red),
                   ],
                 ),
-                if (userPositions.isNotEmpty)
-                  Text(
-                    "Last known position: (${userPositions.last.position.latitude}, ${userPositions.last.position.longitude})",
-                    style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
-                  ),
-              ],
+              MarkerLayer(
+                markers:
+                    userPositions
+                        .take(config.shouldDisplayLastLocationOnly ? 1 : userPositions.length)
+                        .map(
+                          (e) => Marker(point: e.position, child: Icon(Icons.place, color: Colors.red), rotate: false),
+                        )
+                        .toList(),
+              ),
+            ],
+          ),
+          if (userPositions.isNotEmpty)
+            Text(
+              "Last known position: (${userPositions.last.position.latitude}, ${userPositions.last.position.longitude})",
+              style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
             ),
+        ],
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      floatingActionButton: ValueListenableBuilder(
-        valueListenable: UserPositionsBackgroundService.isTracking,
-        builder:
-            (ctx, isTracking, _) => FloatingActionButton.extended(
-              onPressed:
-                  isTracking
-                      ? UserPositionsBackgroundService.stopTracking
-                      : UserPositionsBackgroundService.startRecordingLocations,
-              label: isTracking ? Text('Stop recording') : Text('Start recording'),
-              icon:
-                  isTracking
-                      ? const Icon(Icons.fiber_manual_record, color: Colors.red)
-                      : const Icon(Icons.fiber_manual_record_outlined, color: Colors.grey),
-            ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: isTracking ? userPositionProvider.stopTracking : userPositionProvider.startRecordingLocations,
+        label:
+            isTracking
+                ? Text('Stop recording (${config.enableBackgroundTasks ? 'background - 15min' : 'foreground - 15sec'})')
+                : Text(
+                  'Start recording (${config.enableBackgroundTasks ? 'background - 15min' : 'foreground - 15sec'})',
+                ),
+        icon:
+            isTracking
+                ? const Icon(Icons.fiber_manual_record, color: Colors.red)
+                : const Icon(Icons.fiber_manual_record_outlined, color: Colors.grey),
       ),
     );
   }
