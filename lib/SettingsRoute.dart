@@ -68,16 +68,33 @@ class SettingsRoute extends StatelessWidget {
             ),
             Padding(
               padding: const EdgeInsets.only(bottom: 24),
-              child: ElevatedButton(
-                onPressed: userPositionProvider.clear,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.delete, color: Colors.red),
-                    SizedBox(width: 8),
-                    Text("Clear positions", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-                  ],
-                ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                spacing: 16,
+                children: [
+                  ElevatedButton(
+                    onPressed: userPositionProvider.clear,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.delete, color: Colors.red),
+                        SizedBox(width: 8),
+                        Text("Clear positions", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+                  ElevatedButton(
+                    onPressed: userPositionProvider.retrieveUserPositionsFromLocalStorage,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.refresh),
+                        SizedBox(width: 8),
+                        Text("Reload Local", style: TextStyle(fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

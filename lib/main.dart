@@ -3,7 +3,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_tile_caching/flutter_map_tile_caching.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:poc_gps_bateaux/ConfigProvider.dart';
 import 'package:provider/provider.dart';
 
@@ -12,9 +14,11 @@ import 'UserPositionProvider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  final dir = await getApplicationDocumentsDirectory();
+  await Hive.initFlutter(dir.path);
   await FMTCObjectBoxBackend().initialise();
   await FMTCStore('mapStore').manage.create();
-  preloadTiles();
+  //preloadTiles();
 
   runApp(
     MultiProvider(
@@ -61,6 +65,14 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   bool shouldDisplayLastLocationOnly = false;
   bool shouldDisplayLinesBetweenLocations = false;
+
+  @override
+  void initState() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<UserPositionProvider>(context, listen: false).initBackgroundService();
+    });
+    super.initState();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -124,9 +136,9 @@ class _MyHomePageState extends State<MyHomePage> {
         onPressed: isTracking ? userPositionProvider.stopTracking : userPositionProvider.startRecordingLocations,
         label:
             isTracking
-                ? Text('Stop recording (${config.enableBackgroundTasks ? 'background - 15min' : 'foreground - 15sec'})')
+                ? Text('Stop recording (${config.enableBackgroundTasks ? 'background - 15sec' : 'foreground - 15sec'})')
                 : Text(
-                  'Start recording (${config.enableBackgroundTasks ? 'background - 15min' : 'foreground - 15sec'})',
+                  'Start recording (${config.enableBackgroundTasks ? 'background - 15sec' : 'foreground - 15sec'})',
                 ),
         icon:
             isTracking
