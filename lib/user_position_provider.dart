@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:collection';
-import 'dart:io';
 
 import 'package:background_location_tracker/background_location_tracker.dart';
 import 'package:flutter/cupertino.dart';
@@ -73,25 +72,19 @@ class UserPositionProvider extends ChangeNotifier {
   Future<void> _handlePermission() async {
     final bool serviceEnabled = (await Permission.location.serviceStatus).isEnabled;
     logger.d('[POC] Location service enabled: $serviceEnabled');
-    var status =
-        Platform.isIOS
-            ? await Permission.locationWhenInUse.status
-            : isBackgroundTaskEnabled
-            ? await Permission.locationAlways.status
-            : await Permission.location.status;
-    logger.d('[POC] Location permission status: $status');
+    final foregroundLocationPermissionStatus = await Permission.locationWhenInUse.status;
+    logger.d('[POC] foregroundLocationPermission permission status: $foregroundLocationPermissionStatus');
 
     if (!serviceEnabled) {
       throw Exception('Location services are disabled.');
     }
 
-    if (status == PermissionStatus.denied) {
-      status =
-          Platform.isIOS
-              ? await Permission.locationWhenInUse.request()
-              : isBackgroundTaskEnabled
-              ? await Permission.locationAlways.request()
-              : await Permission.location.request();
+    if (foregroundLocationPermissionStatus != PermissionStatus.granted) {
+      await Permission.locationWhenInUse.request().then((status) async {
+        if (status == PermissionStatus.granted && isBackgroundTaskEnabled) {
+          await Permission.locationAlways.request();
+        }
+      });
     }
   }
 
@@ -126,9 +119,10 @@ class UserPositionProvider extends ChangeNotifier {
 
   void _addPosition(final UserPositionData position) async {
     final locationBox = await _getLocationBox();
-    await locationBox.put(position.timestamp.toIso8601String(), {
-      'lat': position.position.latitude,
-      'lon': position.position.longitude,
+    await locationBox.add({
+      'timestamp': position.timestamp.toIso8601String(),
+      'latitude': position.position.latitude,
+      'longitude': position.position.longitude,
     });
     locationBox.close();
     final newUserPositions = [..._items, position];
@@ -138,14 +132,13 @@ class UserPositionProvider extends ChangeNotifier {
 
   Future<void> retrieveUserPositionsFromLocalStorage() async {
     final locationBox = await _getLocationBox();
-    final entries = locationBox.toMap();
+    final values = locationBox.values;
     locationBox.close();
     final positions =
-        entries.entries.map((e) {
-          final data = e.value as Map;
+        values.map((data) {
           return UserPositionData(
-            position: LatLng(data['lat'] as double, data['lon'] as double),
-            timestamp: DateTime.parse(e.key),
+            position: LatLng(data['latitude'] as double, data['longitude'] as double),
+            timestamp: DateTime.parse(data['timestamp'] as String),
           );
         }).toList();
     positions.sort((a, b) => a.timestamp.compareTo(b.timestamp));
@@ -207,7 +200,11 @@ void backgroundCallback() async {
       } else {
         locationBox = Hive.box('locationBox');
       }
-      await locationBox.put(DateTime.now().toIso8601String(), {'lat': data.lat, 'lon': data.lon});
+      await locationBox.add({
+        'latitude': data.lat,
+        'longitude': data.lon,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
       await locationBox.close();
     } catch (e) {
       logger.e("[POC] Error storing background location: $e");
