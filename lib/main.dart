@@ -5,6 +5,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_tile_caching/flutter_map_tile_caching.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:logger/logger.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:poc_gps_bateaux/config_provider.dart';
 import 'package:provider/provider.dart';
@@ -181,8 +182,19 @@ Future<void> preloadTiles({LatLng? lastPosition}) async {
   final (:downloadProgress, :tileEvents) = store.download.startForeground(region: downloadableRegion);
 
   downloadProgress.listen((progress) {
-    print(
+    logger.i(
       '[MAP DOWNLOAD] Progress: ${progress.successfulTilesCount} / ${progress.attemptedTilesCount + progress.remainingTilesCount} (${progress.percentageProgress}% - ${progress.estRemainingDuration} remaining)',
     );
   });
 }
+
+var logger = Logger(
+  printer: PrettyPrinter(
+    errorMethodCount: 4,
+    methodCount: 0,
+    lineLength: 150,
+    colors: true,
+    printEmojis: true,
+    dateTimeFormat: DateTimeFormat.onlyTimeAndSinceStart,
+  ),
+);

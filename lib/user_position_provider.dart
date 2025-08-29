@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:io';
 
 import 'package:background_location_tracker/background_location_tracker.dart';
 import 'package:flutter/cupertino.dart';
@@ -10,6 +11,8 @@ import 'package:latlong2/latlong.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:poc_gps_bateaux/user_position_data.dart';
+
+import 'main.dart';
 
 class UserPositionProvider extends ChangeNotifier {
   static const String userPositionsKey = 'user_positions';
@@ -44,24 +47,52 @@ class UserPositionProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> initBackgroundService() async {
+    if (await BackgroundLocationTrackerManager.isTracking()) {
+      return;
+    }
+    await BackgroundLocationTrackerManager.initialize(
+      backgroundCallback,
+      config: BackgroundLocationTrackerConfig(
+        loggingEnabled: true,
+        androidConfig: const AndroidConfig(
+          notificationIcon: 'explore',
+          trackingInterval: Duration(seconds: 15),
+          distanceFilterMeters: null,
+        ),
+        iOSConfig: IOSConfig(
+          activityType: ActivityType.AUTOMOTIVE, // ActivityType.FITNESS,
+          distanceFilterMeters: null,
+          restartAfterKill: true,
+        ),
+      ),
+    );
+    logger.i('[POC] BackgroundLocationTrackerManager initialized, isTracking: $_isTracking');
+  }
+
   Future<void> _handlePermission() async {
     final bool serviceEnabled = (await Permission.location.serviceStatus).isEnabled;
-    var status = isBackgroundTaskEnabled ? await Permission.locationAlways.status : await Permission.location.status;
+    logger.d('[POC] Location service enabled: $serviceEnabled');
+    var status =
+        Platform.isIOS
+            ? await Permission.locationWhenInUse.status
+            : isBackgroundTaskEnabled
+            ? await Permission.locationAlways.status
+            : await Permission.location.status;
+    logger.d('[POC] Location permission status: $status');
 
     if (!serviceEnabled) {
-      return Future.error('Location services are disabled.');
+      throw Exception('Location services are disabled.');
     }
 
     if (status == PermissionStatus.denied) {
       status =
-          isBackgroundTaskEnabled ? await Permission.locationAlways.request() : await Permission.location.request();
-      if (status != PermissionStatus.granted) {
-        return Future.error('Location permissions are denied');
-      }
+          Platform.isIOS
+              ? await Permission.locationWhenInUse.request()
+              : isBackgroundTaskEnabled
+              ? await Permission.locationAlways.request()
+              : await Permission.location.request();
     }
-    /*if (permission == geo.LocationPermission.deniedForever) {
-      return Future.error('Location permissions are permanently denied, we cannot request permissions.');
-    }*/
   }
 
   Future<void> startRecordingLocations() async {
@@ -77,7 +108,7 @@ class UserPositionProvider extends ChangeNotifier {
         });
       }
     } catch (e) {
-      print("[POC] Error when start recording locations: $e");
+      logger.e("[POC] Error when start recording locations: $e");
     }
   }
 
@@ -124,29 +155,10 @@ class UserPositionProvider extends ChangeNotifier {
 
   void clear() async {
     final locationBox = await _getLocationBox();
-    locationBox.clear();
-    locationBox.close();
+    await locationBox.clear();
+    await locationBox.close();
     _items.clear();
     notifyListeners();
-  }
-
-  Future<void> initBackgroundService() async {
-    if (await BackgroundLocationTrackerManager.isTracking()) {
-      return;
-    }
-    await BackgroundLocationTrackerManager.initialize(
-      backgroundCallback,
-      config: BackgroundLocationTrackerConfig(
-        loggingEnabled: true,
-        androidConfig: const AndroidConfig(
-          notificationIcon: 'explore',
-          trackingInterval: Duration(seconds: 15),
-          distanceFilterMeters: null,
-        ),
-        iOSConfig: IOSConfig(activityType: ActivityType.NAVIGATION, distanceFilterMeters: null, restartAfterKill: true),
-      ),
-    );
-    print('[POC] BackgroundLocationTrackerManager initialized, isTracking: $_isTracking');
   }
 
   Future<Box> _getLocationBox() async {
@@ -164,19 +176,19 @@ class UserPositionProvider extends ChangeNotifier {
         UserPositionData(position: LatLng(position.latitude, position.longitude), timestamp: DateTime.now()),
       );
       // preloadTiles(lastPosition: LatLng(position.latitude, position.longitude));
-      print('[POC] Location tracked: ${position.latitude}, ${position.longitude}');
+      logger.i('[POC] Location tracked: ${position.latitude}, ${position.longitude}');
     } catch (e) {
-      print('[POC] Error tracking location: $e');
+      logger.e('[POC] Error tracking location: $e');
     }
   }
 
   Future _startLocationTracking() async {
-    print('[POC] Start location tracking');
+    logger.i('[POC] Start location tracking');
     await BackgroundLocationTrackerManager.startTracking();
   }
 
   Future _stopLocationTracking() async {
-    print('[POC] Stopping location tracking');
+    logger.i('[POC] Stopping location tracking');
     await BackgroundLocationTrackerManager.stopTracking();
   }
 }
@@ -197,6 +209,8 @@ void backgroundCallback() async {
       }
       await locationBox.put(DateTime.now().toIso8601String(), {'lat': data.lat, 'lon': data.lon});
       await locationBox.close();
-    } catch (e) {}
+    } catch (e) {
+      logger.e("[POC] Error storing background location: $e");
+    }
   });
 }
