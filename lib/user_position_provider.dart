@@ -8,6 +8,7 @@ import 'package:geolocator/geolocator.dart' as geo;
 import 'package:hive_flutter/adapters.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:poc_gps_bateaux/user_position_data.dart';
 
 class UserPositionProvider extends ChangeNotifier {
@@ -29,10 +30,7 @@ class UserPositionProvider extends ChangeNotifier {
 
   geo.LocationSettings get _locationSettings {
     if (defaultTargetPlatform == TargetPlatform.android) {
-      return geo.AndroidSettings(
-        accuracy: geo.LocationAccuracy.high,
-        intervalDuration: const Duration(seconds: 15),
-      );
+      return geo.AndroidSettings(accuracy: geo.LocationAccuracy.high, intervalDuration: const Duration(seconds: 15));
     } else if (defaultTargetPlatform == TargetPlatform.iOS) {
       return geo.AppleSettings(
         accuracy: geo.LocationAccuracy.high,
@@ -47,22 +45,23 @@ class UserPositionProvider extends ChangeNotifier {
   }
 
   Future<void> _handlePermission() async {
-    final bool serviceEnabled = await geo.Geolocator.isLocationServiceEnabled();
-    geo.LocationPermission permission = await geo.Geolocator.checkPermission();
+    final bool serviceEnabled = (await Permission.location.serviceStatus).isEnabled;
+    var status = isBackgroundTaskEnabled ? await Permission.locationAlways.status : await Permission.location.status;
 
     if (!serviceEnabled) {
       return Future.error('Location services are disabled.');
     }
 
-    if (permission == geo.LocationPermission.denied) {
-      permission = await geo.Geolocator.requestPermission();
-      if (permission == geo.LocationPermission.denied) {
+    if (status == PermissionStatus.denied) {
+      status =
+          isBackgroundTaskEnabled ? await Permission.locationAlways.request() : await Permission.location.request();
+      if (status != PermissionStatus.granted) {
         return Future.error('Location permissions are denied');
       }
     }
-    if (permission == geo.LocationPermission.deniedForever) {
+    /*if (permission == geo.LocationPermission.deniedForever) {
       return Future.error('Location permissions are permanently denied, we cannot request permissions.');
-    }
+    }*/
   }
 
   Future<void> startRecordingLocations() async {
@@ -198,7 +197,6 @@ void backgroundCallback() async {
       }
       await locationBox.put(DateTime.now().toIso8601String(), {'lat': data.lat, 'lon': data.lon});
       await locationBox.close();
-
     } catch (e) {}
   });
 }
