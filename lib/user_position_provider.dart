@@ -8,8 +8,7 @@ import 'package:geolocator/geolocator.dart' as geo;
 import 'package:hive_flutter/adapters.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:poc_gps_bateaux/UserPositionData.dart';
-import 'dart:developer' as developer;
+import 'package:poc_gps_bateaux/user_position_data.dart';
 
 class UserPositionProvider extends ChangeNotifier {
   static const String userPositionsKey = 'user_positions';
@@ -21,7 +20,8 @@ class UserPositionProvider extends ChangeNotifier {
 
   UnmodifiableListView<UserPositionData> get items => UnmodifiableListView(_items);
 
-  bool get isTracking => _isTracking;
+  Future<bool> get isTracking =>
+      isBackgroundTaskEnabled ? BackgroundLocationTrackerManager.isTracking() : Future.value(_isTracking);
 
   UserPositionProvider(this.isBackgroundTaskEnabled) {
     retrieveUserPositionsFromLocalStorage();
@@ -31,16 +31,7 @@ class UserPositionProvider extends ChangeNotifier {
     if (defaultTargetPlatform == TargetPlatform.android) {
       return geo.AndroidSettings(
         accuracy: geo.LocationAccuracy.high,
-        distanceFilter: 50,
-        forceLocationManager: true,
         intervalDuration: const Duration(seconds: 15),
-        //(Optional) Set foreground notification config to keep the app alive
-        //when going to the background
-        /*foregroundNotificationConfig: const geo.ForegroundNotificationConfig(
-          notificationText: "Example app will continue to receive your location even when you aren't using it",
-          notificationTitle: "Running in Background",
-          enableWakeLock: true,
-        ),*/
       );
     } else if (defaultTargetPlatform == TargetPlatform.iOS) {
       return geo.AppleSettings(
@@ -79,16 +70,8 @@ class UserPositionProvider extends ChangeNotifier {
       await _handlePermission();
       _isTracking = true;
       notifyListeners();
-      //await _getPosition();
       if (isBackgroundTaskEnabled) {
         _startLocationTracking();
-        /*BackgroundFetch.start()
-            .then((int status) {
-              print('[BackgroundFetch] start success: $status');
-            })
-            .catchError((e) {
-              print('[BackgroundFetch] start FAILURE: $e');
-            });*/
       } else {
         _timer = Timer.periodic(Duration(seconds: 15), (timer) {
           _getPosition();
@@ -102,9 +85,6 @@ class UserPositionProvider extends ChangeNotifier {
   void stopTracking() {
     if (isBackgroundTaskEnabled) {
       _stopLocationTracking();
-      /*BackgroundFetch.stop().then((int status) {
-        print('[BackgroundFetch] stop success: $status');
-      });*/
     }
     if (_timer != null) {
       _timer!.cancel();
@@ -126,15 +106,6 @@ class UserPositionProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /*void _addPosition(final UserPositionData position) async {
-    final prefs = await SharedPreferences.getInstance();
-    final userPositions = await _retrieveUserPositionsFromPrefs();
-    final newUserPositions = [...userPositions, position];
-    _items = newUserPositions;
-    notifyListeners();
-    prefs.setString(userPositionsKey, jsonEncode(newUserPositions.map((e) => e.toJson()).toList()));
-  }*/
-
   Future<void> retrieveUserPositionsFromLocalStorage() async {
     final locationBox = await _getLocationBox();
     final entries = locationBox.toMap();
@@ -152,13 +123,6 @@ class UserPositionProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /*Future<List<UserPositionData>> _retrieveUserPositionsFromPrefs() async {
-    final prefs = await SharedPreferences.getInstance();
-    final prefsPositions = prefs.getString(userPositionsKey);
-    final jsonPositions = prefsPositions == null ? [] : jsonDecode(prefsPositions) as List<dynamic>;
-    return jsonPositions.map((e) => UserPositionData.fromJson(e)).toList();
-  }*/
-
   void clear() async {
     final locationBox = await _getLocationBox();
     locationBox.clear();
@@ -167,14 +131,10 @@ class UserPositionProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /*void clear() async {
-    final prefs = await SharedPreferences.getInstance();
-    _items.clear();
-    await prefs.remove(userPositionsKey);
-    notifyListeners();
-  }*/
-
   Future<void> initBackgroundService() async {
+    if (await BackgroundLocationTrackerManager.isTracking()) {
+      return;
+    }
     await BackgroundLocationTrackerManager.initialize(
       backgroundCallback,
       config: BackgroundLocationTrackerConfig(
@@ -187,35 +147,8 @@ class UserPositionProvider extends ChangeNotifier {
         iOSConfig: IOSConfig(activityType: ActivityType.NAVIGATION, distanceFilterMeters: null, restartAfterKill: true),
       ),
     );
-    _isTracking = await BackgroundLocationTrackerManager.isTracking();
     print('[POC] BackgroundLocationTrackerManager initialized, isTracking: $_isTracking');
-    notifyListeners();
   }
-
-  /*Future<void> _initService() async {
-    final int status = await BackgroundFetch.configure(
-      BackgroundFetchConfig(
-        minimumFetchInterval: 15,
-        stopOnTerminate: true,
-        enableHeadless: false,
-        requiresBatteryNotLow: false,
-        requiresCharging: false,
-        requiresStorageNotLow: false,
-        requiresDeviceIdle: false,
-        requiredNetworkType: NetworkType.NONE,
-      ),
-      (String taskId) async {
-        print("[BackgroundFetch] Event received $taskId");
-        await _getPosition();
-        BackgroundFetch.finish(taskId);
-      },
-      (String taskId) async {
-        print("[BackgroundFetch] TASK TIMEOUT taskId: $taskId");
-        BackgroundFetch.finish(taskId);
-      },
-    );
-    print('[BackgroundFetch] configure success: $status');
-  }*/
 
   Future<Box> _getLocationBox() async {
     if (!Hive.isBoxOpen('locationBox')) {
@@ -266,10 +199,6 @@ void backgroundCallback() async {
       await locationBox.put(DateTime.now().toIso8601String(), {'lat': data.lat, 'lon': data.lon});
       await locationBox.close();
 
-      // Ajouter un log pour confirmer le traitement
-      developer.log('[POC] Background location saved: ${data.lat}, ${data.lon}');
-    } catch (e) {
-      developer.log('[POC] Error in background callback: $e');
-    }
+    } catch (e) {}
   });
 }

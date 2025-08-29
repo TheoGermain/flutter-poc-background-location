@@ -6,11 +6,11 @@ import 'package:flutter_map_tile_caching/flutter_map_tile_caching.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:poc_gps_bateaux/ConfigProvider.dart';
+import 'package:poc_gps_bateaux/config_provider.dart';
 import 'package:provider/provider.dart';
 
-import 'SettingsRoute.dart';
-import 'UserPositionProvider.dart';
+import 'settings_route.dart';
+import 'user_position_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -132,18 +132,28 @@ class _MyHomePageState extends State<MyHomePage> {
         ],
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: isTracking ? userPositionProvider.stopTracking : userPositionProvider.startRecordingLocations,
-        label:
-            isTracking
-                ? Text('Stop recording (${config.enableBackgroundTasks ? 'background - 15sec' : 'foreground - 15sec'})')
-                : Text(
-                  'Start recording (${config.enableBackgroundTasks ? 'background - 15sec' : 'foreground - 15sec'})',
-                ),
-        icon:
-            isTracking
-                ? const Icon(Icons.fiber_manual_record, color: Colors.red)
-                : const Icon(Icons.fiber_manual_record_outlined, color: Colors.grey),
+      floatingActionButton: FutureBuilder(
+        future: isTracking,
+        builder:
+            (ctx, data) =>
+                data.hasData
+                    ? FloatingActionButton.extended(
+                      onPressed:
+                          data.data! ? userPositionProvider.stopTracking : userPositionProvider.startRecordingLocations,
+                      label:
+                          data.data!
+                              ? Text(
+                                'Stop recording (${config.enableBackgroundTasks ? 'background - 15sec' : 'foreground - 15sec'})',
+                              )
+                              : Text(
+                                'Start recording (${config.enableBackgroundTasks ? 'background - 15sec' : 'foreground - 15sec'})',
+                              ),
+                      icon:
+                          data.data!
+                              ? const Icon(Icons.fiber_manual_record, color: Colors.red)
+                              : const Icon(Icons.fiber_manual_record_outlined, color: Colors.grey),
+                    )
+                    : SizedBox(),
       ),
     );
   }

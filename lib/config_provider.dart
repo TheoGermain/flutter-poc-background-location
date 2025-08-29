@@ -1,6 +1,17 @@
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ConfigProvider extends ChangeNotifier {
+  static const String enableBackgroundTasksKey = 'enable_background_tasks';
+
+  ConfigProvider() {
+    SharedPreferences.getInstance().then((prefs) {
+      final enableBackgroundTasks = prefs.getBool(enableBackgroundTasksKey) ?? false;
+      _config = _config.copy(enableBackgroundTasks: enableBackgroundTasks);
+      notifyListeners();
+    });
+  }
+
   Config _config = Config();
 
   bool get shouldDisplayLastLocationOnly => _config.shouldDisplayLastLocationOnly;
@@ -27,6 +38,9 @@ class ConfigProvider extends ChangeNotifier {
 
   void updateEnableBackgroundTasks(final bool value) {
     _config = _config.copy(enableBackgroundTasks: value);
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.setBool(enableBackgroundTasksKey, value);
+    });
     notifyListeners();
   }
 }

@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
-import 'ConfigProvider.dart';
-import 'UserPositionProvider.dart';
+import 'config_provider.dart';
+import 'user_position_provider.dart';
 
 class SettingsRoute extends StatelessWidget {
   const SettingsRoute({super.key});
