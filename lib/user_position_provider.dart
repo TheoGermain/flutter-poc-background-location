@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:collection';
 
 import 'package:background_location_tracker/background_location_tracker.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart' as geo;
@@ -10,11 +12,15 @@ import 'package:latlong2/latlong.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:poc_gps_bateaux/user_position_data.dart';
+import 'package:workmanager/workmanager.dart';
 
+import 'firebase_options.dart';
 import 'main.dart';
 
 class UserPositionProvider extends ChangeNotifier {
   static const String userPositionsKey = 'user_positions';
+  static const String sendLocationTaskId = 'send_locations';
+  static const String oneTimeSyncUniqueNameId = 'sync-task';
 
   final bool isBackgroundTaskEnabled;
   List<UserPositionData> _items = [];
@@ -47,6 +53,8 @@ class UserPositionProvider extends ChangeNotifier {
   }
 
   Future<void> initBackgroundService() async {
+    Workmanager().initialize(callbackDispatcher);
+
     if (await BackgroundLocationTrackerManager.isTracking()) {
       return;
     }
@@ -123,6 +131,7 @@ class UserPositionProvider extends ChangeNotifier {
       'timestamp': position.timestamp.toIso8601String(),
       'latitude': position.position.latitude,
       'longitude': position.position.longitude,
+      'isAlreadySent': false,
     });
     locationBox.close();
     final newUserPositions = [..._items, position];
@@ -139,6 +148,7 @@ class UserPositionProvider extends ChangeNotifier {
           return UserPositionData(
             position: LatLng(data['latitude'] as double, data['longitude'] as double),
             timestamp: DateTime.parse(data['timestamp'] as String),
+            alreadySent: data['isAlreadySent'] as bool,
           );
         }).toList();
     positions.sort((a, b) => a.timestamp.compareTo(b.timestamp));
@@ -166,7 +176,11 @@ class UserPositionProvider extends ChangeNotifier {
     try {
       final position = await geo.Geolocator.getCurrentPosition(locationSettings: _locationSettings);
       _addPosition(
-        UserPositionData(position: LatLng(position.latitude, position.longitude), timestamp: DateTime.now()),
+        UserPositionData(
+          position: LatLng(position.latitude, position.longitude),
+          timestamp: DateTime.now(),
+          alreadySent: false,
+        ),
       );
       // preloadTiles(lastPosition: LatLng(position.latitude, position.longitude));
       logger.i('[POC] Location tracked: ${position.latitude}, ${position.longitude}');
@@ -204,10 +218,64 @@ void backgroundCallback() async {
         'latitude': data.lat,
         'longitude': data.lon,
         'timestamp': DateTime.now().toIso8601String(),
+        'isAlreadySent': false,
       });
       await locationBox.close();
+
+      Workmanager().registerOneOffTask(
+        UserPositionProvider.oneTimeSyncUniqueNameId,
+        UserPositionProvider.sendLocationTaskId,
+        initialDelay: Duration(seconds: 5),
+        constraints: Constraints(networkType: NetworkType.connected),
+      );
     } catch (e) {
       logger.e("[POC] Error storing background location: $e");
     }
+  });
+}
+
+@pragma('vm:entry-point')
+void callbackDispatcher() {
+  Workmanager().executeTask((task, inputData) async {
+    WidgetsFlutterBinding.ensureInitialized();
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+    final appDocDir = await getApplicationDocumentsDirectory();
+    Hive.init(appDocDir.path);
+
+    if (task == UserPositionProvider.sendLocationTaskId) {
+      Box locationBox;
+      if (!Hive.isBoxOpen('locationBox')) {
+        locationBox = await Hive.openBox('locationBox');
+      } else {
+        locationBox = Hive.box('locationBox');
+      }
+      try {
+        final db = FirebaseFirestore.instance;
+        final unsentLocations = locationBox.values.where((element) => element['isAlreadySent'] == false).toList();
+        final batch = db.batch();
+        for (var location in unsentLocations) {
+          batch.set(db.collection('locations').doc(), {
+            'latitude': location['latitude'],
+            'longitude': location['longitude'],
+            'timestamp': location['timestamp'],
+          });
+        }
+        await batch.commit();
+
+        // Marquer toutes les données non envoyées comme envoyées
+        final keys = locationBox.keys.toList();
+        for (var key in keys) {
+          final data = locationBox.get(key);
+          if (data != null && data['isAlreadySent'] == false) {
+            await locationBox.put(key, {...data, 'isAlreadySent': true});
+          }
+        }
+      } catch (_) {
+        return Future.value(false);
+      } finally {
+        await locationBox.close();
+      }
+    }
+    return Future.value(true);
   });
 }

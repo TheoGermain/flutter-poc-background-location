@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_tile_caching/flutter_map_tile_caching.dart';
@@ -10,11 +11,15 @@ import 'package:path_provider/path_provider.dart';
 import 'package:poc_gps_bateaux/config_provider.dart';
 import 'package:provider/provider.dart';
 
+import 'firebase_options.dart';
 import 'settings_route.dart';
 import 'user_position_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   final dir = await getApplicationDocumentsDirectory();
   await Hive.initFlutter(dir.path);
   await FMTCObjectBoxBackend().initialise();
@@ -198,3 +203,4 @@ var logger = Logger(
     dateTimeFormat: DateTimeFormat.onlyTimeAndSinceStart,
   ),
 );
+

@@ -52,12 +52,16 @@ class SettingsRoute extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.start,
                         children: [
                           Icon(Icons.add_location),
-                          SizedBox(width: 12),
+                          SizedBox(width: 8),
                           Text(
                             "(${e.position.latitude.toStringAsFixed(4)}, ${e.position.longitude.toStringAsFixed(4)})",
                           ),
-                          SizedBox(width: 25),
+                          SizedBox(width: 12),
                           Text(DateFormat('dd-MM-yyyy – kk:mm:ss').format(e.timestamp)),
+                          SizedBox(width: 12),
+                          e.alreadySent
+                              ? Icon(Icons.cloud_done_rounded, color: Colors.green)
+                              : Icon(Icons.cloud_off_rounded, color: Colors.red),
                         ],
                       ),
                     ),

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "900705927891",
+    "project_id": "poc-bateaux-flutter",
+    "storage_bucket": "poc-bateaux-flutter.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:900705927891:android:d95d458d643e66a67e8a26",
+        "android_client_info": {
+          "package_name": "com.example.poc_gps_bateaux"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDZNjQ1OukNjQlglA6uo3CgSZsAGgQgN_s"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
