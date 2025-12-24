@@ -5,7 +5,6 @@
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
 		<string>com.example.poc_gps_bateaux.processing_task</string>
-        <string>com.example.poc_gps_bateaux.periodic_task</string>
 	</array>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
@@ -41,7 +40,6 @@
 	<true/>
 	<key>UIBackgroundModes</key>
 	<array>
-		<string>location</string>
 		<string>processing</string>
 	</array>
 	<key>UILaunchStoryboardName</key>

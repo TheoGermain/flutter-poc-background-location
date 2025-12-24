@@ -17,10 +17,6 @@ import workmanager_apple
         WorkmanagerPlugin.registerBGProcessingTask(
             withIdentifier: "com.example.poc_gps_bateaux.processing_task"
         )
-        WorkmanagerPlugin.registerPeriodicTask(
-            withIdentifier: "com.example.poc_gps_bateaux.periodic_task",
-            frequency: NSNumber(value: 15 * 60) // 15 minutes
-        )
         return super.application(application, didFinishLaunchingWithOptions: launchOptions)
     }
 }
